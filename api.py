@@ -31,9 +31,17 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    auth_token: str = None
 
 class ChatResponse(BaseModel):
     response: str
+
+class ForecastRequest(BaseModel):
+    data: dict
+
+class ForecastResponse(BaseModel):
+    forecast: str
+    insights: str
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
@@ -41,7 +49,9 @@ async def chat_endpoint(request: ChatRequest):
     try:
         if not chatbot:
             raise HTTPException(status_code=503, detail="Chatbot not initialized")
-        response = await chatbot.process_query(request.message)
+        print(f"Received message: {request.message}")
+        print(f"Auth token: {request.auth_token}")
+        response = await chatbot.process_query(request.message, auth_token=request.auth_token)
         return ChatResponse(response=response)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -54,6 +64,25 @@ async def clear_chat_history():
             raise HTTPException(status_code=503, detail="Chatbot not initialized")
         chatbot.clear_history()
         return {"message": "Chat history cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/forecast", response_model=ForecastResponse)
+async def forecast_endpoint(request: ForecastRequest):
+    """Handle forecast requests with JSON data"""
+    try:
+        if not chatbot:
+            raise HTTPException(status_code=503, detail="Chatbot not initialized")
+        
+        print(f"Received forecast data: {request.data}")
+        
+        # Use the specialized forecast method
+        result = await chatbot.process_forecast(request.data)
+        return ForecastResponse(
+            forecast=result["forecast"],
+            insights=result["insights"]
+        )
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

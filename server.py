@@ -12,15 +12,16 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("bookings")
 
 backend_url = 'http://127.0.0.1:8000'
-auth_token = 'supersecretdevtoken'
+# auth_token = 'supersecretdevtoken'
 
 @mcp.tool()
-def search_equipment(site_name: str) -> str:
+def search_equipment(site_name: str, auth_token: str) -> str:
     """
     Search for available equipment at a specific site.
     
     Args:
         site_name: The name of the site to search for equipment (e.g., "Basel pRED")
+        auth_token: Authorization token for the backend API
     
     Returns:
         A formatted list of available equipment with details
@@ -63,18 +64,20 @@ def search_equipment(site_name: str) -> str:
 
 @mcp.tool()
 def book_equipment(
+    auth_token: str,
     equipment_ids: str,
     date: str,
     time_start: str,
     time_end: str,
     number_of_people: int = 1,
     reason: str = "Equipment usage",
-    timezone: str = "Europe/Zurich"
+    timezone: str = "Europe/Zurich",
 ) -> str:
     """
     Create a booking for equipment.
     
     Args:
+        auth_token: Authorization token for the backend API
         equipment_ids: Comma-separated list of equipment IDs to book (e.g., "45c5a1ee-2929-4b95-8bc9-d36b2b624a1c" or "id1,id2")
         date: Date of booking in YYYY-MM-DD format (e.g., "2025-07-07")
         time_start: Start time in HH:MM format (e.g., "10:30")
