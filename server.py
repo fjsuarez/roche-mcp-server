@@ -3,6 +3,7 @@ from mcp.server.fastmcp import FastMCP
 import logging
 import json
 import datetime
+from typing import List
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("bookings")
 
 backend_url = 'http://127.0.0.1:8000'
-# auth_token = 'supersecretdevtoken'
 
 @mcp.tool()
 def search_equipment(site_name: str, auth_token: str) -> str:
@@ -21,11 +21,14 @@ def search_equipment(site_name: str, auth_token: str) -> str:
     
     Args:
         site_name: The name of the site to search for equipment (e.g., "Basel pRED")
-        auth_token: Authorization token for the backend API
+        auth_token: Authorization token for API access
     
     Returns:
         A formatted list of available equipment with details
     """
+    if not auth_token:
+        return "Error: Authorization token not provided."
+    
     try:
         response = requests.get(
             f"{backend_url}/tools/by-site/bookable?site_name={site_name}",
@@ -52,7 +55,7 @@ def search_equipment(site_name: str, auth_token: str) -> str:
                 result += f"   Location: Room {location.get('room', 'N/A')}, Floor {location.get('floor', 'N/A')}, Building {location.get('building', 'N/A')}\n"
                 result += f"   Contact: {responsible.get('first_name', 'Unknown')} {responsible.get('last_name', '')} ({responsible.get('email', 'N/A')})\n"
                 result += f"   Check-in required: {'Yes' if equipment.get('requires_check_in') else 'No'}\n"
-                result += f"   ID: {equipment.get('id', 'N/A')}\n\n"
+                result += f"   ID for Booking: {equipment.get('id', 'N/A')}\n\n"
             
             return result
             
@@ -64,7 +67,6 @@ def search_equipment(site_name: str, auth_token: str) -> str:
 
 @mcp.tool()
 def book_equipment(
-    auth_token: str,
     equipment_ids: str,
     date: str,
     time_start: str,
@@ -72,23 +74,27 @@ def book_equipment(
     number_of_people: int = 1,
     reason: str = "Equipment usage",
     timezone: str = "Europe/Zurich",
+    auth_token: str = None,
 ) -> str:
     """
     Create a booking for equipment.
     
     Args:
-        auth_token: Authorization token for the backend API
-        equipment_ids: Comma-separated list of equipment IDs to book (e.g., "45c5a1ee-2929-4b95-8bc9-d36b2b624a1c" or "id1,id2")
+        equipment_ids: Comma-separated equipment IDs to book (e.g., "45c5a1ee-2929-4b95-8bc9-d36b2b624a1c" or "id1,id2")
         date: Date of booking in YYYY-MM-DD format (e.g., "2025-07-07")
         time_start: Start time in HH:MM format (e.g., "10:30")
         time_end: End time in HH:MM format (e.g., "12:00")
         number_of_people: Number of people using the equipment (default: 1)
         reason: Reason for booking (default: "Equipment usage")
         timezone: Timezone for the booking (default: "Europe/Zurich")
+        auth_token: Authorization token for API access
     
     Returns:
         Confirmation message with booking details
     """
+    if not auth_token:
+        return "Error: Authorization token not provided."
+    
     try:
         # Clean up equipment_ids - remove brackets if present and handle quotes
         equipment_ids_cleaned = equipment_ids.strip()

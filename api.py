@@ -50,8 +50,9 @@ async def chat_endpoint(request: ChatRequest):
         if not chatbot:
             raise HTTPException(status_code=503, detail="Chatbot not initialized")
         print(f"Received message: {request.message}")
-        print(f"Auth token: {request.auth_token}")
-        response = await chatbot.process_query(request.message, auth_token=request.auth_token)
+        print(f"Auth token received: {request.auth_token}")
+        
+        response = await chatbot.process_query(request.message, request.auth_token)
         return ChatResponse(response=response)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

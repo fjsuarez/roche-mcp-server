@@ -93,33 +93,43 @@ class MCP_ChatBot:
         """Process a query and return the response"""
         if not self._initialized:
             await self.initialize()
-
+        
+        # Store the auth_token for use in tool execution
         self.current_auth_token = auth_token or self.default_auth_token
-
+        
         client = self.ollama
         
-        system_prompt = f"""You are a helpful equipment booking assistant at Roche. 
-
-IMPORTANT: ALL tool calls MUST include the full auth_token parameter. 
-The auth_token for this session is: {self.current_auth_token}
+        # DON'T mention the auth_token in the system prompt to prevent hallucination
+        system_prompt = """You are a helpful equipment booking assistant at Roche. 
 
 You have access to the following tools:
 
-1. search_equipment(site_name, auth_token) - Search for available equipment at a specific site.
-2. book_equipment(auth_token, equipment_ids, date, time_start, time_end, number_of_people, reason, timezone) - Create a booking for equipment.
+1. search_equipment(site_name) - Search for available equipment at a specific site.
+2. book_equipment(equipment_ids, date, time_start, time_end, number_of_people, reason, timezone) - Create a booking for equipment.
+
+CRITICAL RULES FOR EQUIPMENT BOOKING:
+- Use the EXACT equipment ID for Booking from the search results
+- DO NOT hallucinate equipment ID for Booking
 
 IMPORTANT RULES:
-- ALWAYS include the FULL auth_token in every tool call
 - Use only ONE tool call per response
 - When you need to use a tool, respond ONLY with the JSON object, no additional text
 - If you need to use multiple tools, do them in separate responses
+- When using the book_equipment tool, ensure to pass the EXACT ID for Booking field from the search results
+
+WORKFLOW:
+1. For equipment booking requests: First search for equipment, then book using the EXACT ID for Booking
+2. Always use the full UUID format for equipment IDs
+3. Never truncate or modify equipment IDs
 
 Tool call format:
-{{"tool_name": "function_name", "arguments": {{"param1": "value1", "param2": "value2", "auth_token": "{self.current_auth_token}"}}}}
+{"tool_name": "function_name", "arguments": {"param1": "value1", "param2": "value2"}}
 
 Examples:
-- {{"tool_name": "search_equipment", "arguments": {{"site_name": "Basel pRED", "auth_token": "{self.current_auth_token}"}}}}
-- {{"tool_name": "book_equipment", "arguments": {{"auth_token": "{self.current_auth_token}", "equipment_ids": "45c5a1ee-2929-4b95-8bc9-d36b2b624a1c", "date": "2025-07-07", "time_start": "10:30", "time_end": "12:00", "number_of_people": 1, "reason": "Lab tests", "timezone": "Europe/Zurich"}}}}"""
+- {"tool_name": "search_equipment", "arguments": {"site_name": "Basel pRED"}}
+- {"tool_name": "book_equipment", "arguments": {"equipment_ids": "09ed436d-7c04-4c74-84f2-54b213cfb0fd", "date": "2025-07-18", "time_start": "14:30", "time_end": "17:00", "number_of_people": 3, "reason": "Calibration tests", "timezone": "Europe/Zurich"}}
+
+Remember: Equipment IDs are always in UUID format (8-4-4-4-12 characters) and must be copied exactly!"""
 
         # Different system prompt for follow-up responses
         follow_up_system_prompt = """You are a helpful equipment booking assistant at Roche. 
@@ -304,16 +314,15 @@ Examples:
     async def execute_tool(self, tool_name: str, tool_args: dict) -> str:
         """Execute MCP tool"""
         try:
-            # Always ensure auth_token is present
-            if 'auth_token' not in tool_args or not tool_args['auth_token']:
-                if hasattr(self, 'current_auth_token') and self.current_auth_token:
-                    tool_args['auth_token'] = self.current_auth_token
-                    print(f"DEBUG: Added auth_token to tool call")
-                else:
-                    return "Error: No auth_token provided and no default available"
+            # Always inject the auth_token - this prevents LLM hallucination
+            current_token = getattr(self, 'current_auth_token', self.default_auth_token)
             
-            print(f"DEBUG: Calling tool '{tool_name}' with args: {tool_args}")
-            result = await self.session.call_tool(tool_name, tool_args)
+            # Add auth_token to the arguments
+            tool_args_with_auth = tool_args.copy()
+            tool_args_with_auth['auth_token'] = current_token
+            
+            print(f"DEBUG: Calling tool '{tool_name}' with args: {tool_args_with_auth}")
+            result = await self.session.call_tool(tool_name, tool_args_with_auth)
             return str(result.content[0].text) if result.content else "No result"
         except Exception as e:
             print(f"DEBUG: Tool execution failed: {e}")
